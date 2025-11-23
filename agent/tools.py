@@ -1,7 +1,9 @@
-import os
+from datetime import datetime, timezone
 
 from langchain_core.tools import tool
 from ddgs import DDGS
+
+from agent.models import SearchItem, SearchResult
 
 
 @tool
@@ -19,29 +21,66 @@ def think(thought: str) -> str:
 
 
 @tool
-def search(query: str) -> str:
-    """Use this tool to search the web using DuckDuckGo for current information or facts not in your knowledge base.
+def search(query: str, site: str | None = None, days: int | None = None) -> SearchResult:
+    """Use this tool to search the web using DuckDuckGo.
 
-    :param query: The search query to look up.
-    :return: Search results as formatted text with titles, links, and snippets.
+    - Use `site` to restrict results to a domain, e.g. "github.com" or "arxiv.org".
+    - Use `days` to prefer recent results: 1≈daily, 7≈weekly, 30≈monthly, >30≈yearly.
+
+    :param query: The search query.
+    :param site: Optional domain restriction.
+    :param days: Optional recency window in days.
+    :return: SearchResult with structured results.
     """
     try:
+        if site:
+            query = f"site:{site} {query}"
+
+        if days is None:
+            timelimit = None
+        elif days <= 1:
+            timelimit = "d"
+        elif days <= 7:
+            timelimit = "w"
+        elif days <= 31:
+            timelimit = "m"
+        else:
+            timelimit = "y"
+
         ddgs = DDGS()
-        results = ddgs.text(query, max_results=5)
+        raw_results = list(
+            ddgs.text(
+                query,
+                max_results=5,
+                timelimit=timelimit,
+            )
+        )
 
-        if not results:
-            return "No results found."
+        items: list[SearchItem] = []
 
-        formatted_results = []
-        for i, result in enumerate(results, 1):
-            title = result.get('title', 'No title')
-            link = result.get('href', '')
-            snippet = result.get('body', 'No description')
-            formatted_results.append(f"{i}. {title}\n   {link}\n   {snippet}")
+        for result in raw_results:
+            title = result.get("title", "No title")
+            link = result.get("href", "")
+            snippet = result.get("body", "No description")
+            published = result.get("date") or result.get("published")
 
-        print(f"Search results for query '{query}':\n" + "\n".join(formatted_results))
-        print()
+            items.append(
+                SearchItem(
+                    title=title,
+                    link=link,
+                    snippet=snippet,
+                    published=published,
+                )
+            )
 
-        return "\n\n".join(formatted_results)
-    except Exception as e:
-        return f"Search error: {str(e)}"
+        return SearchResult(
+            query=query,
+            results=items,
+            retrieved_at=datetime.now(timezone.utc),
+        )
+    except Exception:
+        return SearchResult(
+            query=query,
+            results=[],
+            retrieved_at=datetime.now(timezone.utc),
+        )
