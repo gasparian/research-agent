@@ -12,6 +12,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import (
     AnyMessage,
     AIMessage,
+    HumanMessage,
     SystemMessage,
     ToolMessage,
 )
@@ -40,20 +41,54 @@ def build_graph():
         python_exec,
     ]
 
-    model = ChatOpenAI(
+    base_llm = ChatOpenAI(
         model="Qwen/Qwen3-Next-80B-A3B-Instruct",
         base_url="https://foundation-models.api.cloud.ru/v1",
         temperature=0,
-    ).bind_tools(tools)
+    )
+
+    agent_model = base_llm.bind_tools(tools)
+    clarifier_model = base_llm
 
     prompt = build_prompt(tools)
     system_message = SystemMessage(content=prompt)
 
     tool_node = ToolNode(tools)
 
+    def clarify_node(state: AgentState) -> AgentState:
+        messages = state.get("messages") or []
+        user_msg = None
+        for m in reversed(messages):
+            if isinstance(m, HumanMessage):
+                user_msg = m
+                break
+        if user_msg is None:
+            return {}
+
+        sys = SystemMessage(
+            content=(
+                "You decide if the user's request is clear enough to start research.\n"
+                "- If it is clear and specific enough, answer exactly: CLEAR\n"
+                "- If you need more information, answer exactly: ASK: <one clarifying question>\n"
+                "Do not call tools. Do not add anything else."
+            )
+        )
+
+        resp = clarifier_model.invoke([sys, user_msg])
+        text = str(resp.content).strip()
+
+        if text.upper().startswith("CLEAR"):
+            return {}
+
+        question = text
+        if ":" in text:
+            question = text.split(":", 1)[1].strip() or "Could you clarify your request?"
+
+        return {"messages": [AIMessage(content=question)]}
+
     def agent_node(state: AgentState) -> AgentState:
         messages = [system_message] + state["messages"]
-        response = model.invoke(messages)
+        response = agent_model.invoke(messages)
         return {"messages": [response]}
 
     def tools_node(state: AgentState) -> AgentState:
@@ -88,6 +123,12 @@ def build_graph():
             data["fetched_pages"] = collected_pages
         return data
 
+    def after_clarify(state: AgentState) -> str:
+        messages = state.get("messages") or []
+        if messages and isinstance(messages[-1], AIMessage):
+            return "ask"
+        return "proceed"
+
     def should_continue(state: AgentState) -> str:
         last = state["messages"][-1]
         if isinstance(last, AIMessage) and getattr(last, "tool_calls", None):
@@ -95,10 +136,20 @@ def build_graph():
         return "end"
 
     graph = StateGraph(AgentState)
+    graph.add_node("clarify", clarify_node)
     graph.add_node("agent", agent_node)
     graph.add_node("tools", tools_node)
 
-    graph.set_entry_point("agent")
+    graph.set_entry_point("clarify")
+    graph.add_conditional_edges(
+        "clarify",
+        after_clarify,
+        {
+            "ask": END,
+            "proceed": "agent",
+        },
+    )
+
     graph.add_conditional_edges(
         "agent",
         should_continue,
