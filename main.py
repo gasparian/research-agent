@@ -7,6 +7,34 @@ from agent.react_agent import build_graph
 from agent.tracing import AgentTracer, ConsoleSink
 
 
+def print_sources(search_results: list[dict]) -> None:
+    links: list[tuple[str, str]] = []
+
+    for r in search_results:
+        results = r.get("results") or []
+        for item in results:
+            title = item.get("title", "")
+            link = item.get("link", "")
+            if link:
+                links.append((title, link))
+
+    seen = set()
+    deduped: list[tuple[str, str]] = []
+    for title, link in links:
+        if link in seen:
+            continue
+        seen.add(link)
+        deduped.append((title, link))
+
+    if not deduped:
+        return
+
+    print("Sources:")
+    for i, (title, link) in enumerate(deduped, 1):
+        print(f"{i}. {title} - {link}")
+    print()
+
+
 async def run_with_trace(graph, state, config, tracer: AgentTracer):
     result_state = None
 
@@ -35,9 +63,6 @@ async def main():
         "recursion_limit": 50,
     }
 
-    messages = []
-    search_results = []
-
     print("Type an empty line to exit.\n")
 
     while True:
@@ -45,11 +70,8 @@ async def main():
         if not user_input:
             break
 
-        messages.append(HumanMessage(content=user_input))
-
         state = {
-            "messages": messages,
-            "search_results": search_results,
+            "messages": [HumanMessage(content=user_input)],
         }
 
         result = await run_with_trace(graph, state, config, tracer)
@@ -60,6 +82,8 @@ async def main():
         last = messages[-1]
         print("Assistant:", last.content)
         print()
+
+        print_sources(search_results)
 
 
 if __name__ == "__main__":

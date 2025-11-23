@@ -16,20 +16,24 @@ from langchain_core.messages import (
     ToolMessage,
 )
 
-from agent.tools import think, search
+from agent.tools.think import think
+from agent.tools.search import search
 from agent.models import SearchResult
+from agent.tools.web_fetch import fetch_url, FetchResult
 from agent.prompt import build_prompt
 
 
 class AgentState(TypedDict):
     messages: Annotated[list[AnyMessage], add_messages]
-    search_results: Annotated[list[SearchResult], operator.add]
+    search_results: Annotated[list[dict], operator.add]
+    fetched_pages: Annotated[list[dict], operator.add]
 
 
 def build_graph():
     tools = [
         think,
         search,
+        fetch_url,
     ]
 
     model = ChatOpenAI(
@@ -50,23 +54,34 @@ def build_graph():
 
     def tools_node(state: AgentState) -> AgentState:
         result = tool_node.invoke(state)
-        all_messages = result["messages"]
-        new_messages = all_messages[len(state["messages"]) :]
+        messages = result.get("messages", [])
 
-        collected: list[SearchResult] = []
+        collected_search: list[dict] = []
+        collected_pages: list[dict] = []
 
-        for m in new_messages:
+        for m in messages:
             if isinstance(m, ToolMessage) and m.name == "search":
                 content = m.content
                 if isinstance(content, dict):
                     try:
-                        collected.append(SearchResult(**content))
+                        sr = SearchResult(**content)
+                        collected_search.append(sr.model_dump())
+                    except Exception:
+                        pass
+            if isinstance(m, ToolMessage) and m.name == "fetch_url":
+                content = m.content
+                if isinstance(content, dict):
+                    try:
+                        fr = FetchResult(**content)
+                        collected_pages.append(fr.model_dump())
                     except Exception:
                         pass
 
-        data: AgentState = {"messages": new_messages}
-        if collected:
-            data["search_results"] = collected
+        data: AgentState = {"messages": messages}
+        if collected_search:
+            data["search_results"] = collected_search
+        if collected_pages:
+            data["fetched_pages"] = collected_pages
         return data
 
     def should_continue(state: AgentState) -> str:

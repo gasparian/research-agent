@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from urllib.parse import urlparse, parse_qs, unquote
 
 from langchain_core.tools import tool
 from ddgs import DDGS
@@ -6,18 +7,19 @@ from ddgs import DDGS
 from agent.models import SearchItem, SearchResult
 
 
-@tool
-def think(thought: str) -> str:
-    """Use the tool to think about something.
-           This is perfect to start your workflow.
-           It will not collect new information or take any actions, but just append the thought to the log and return the result.
-           Use it when complex reasoning or some cache memory or a scratchpad is needed.
+def _normalize_link(raw: str) -> str:
+    if not raw:
+        return raw
 
+    parsed = urlparse(raw)
 
-           :param thought: A thought to think about and log.
-           :return: The full log of thoughts and the new thought.
-    """
-    return thought
+    if parsed.netloc == "duckduckgo.com" and parsed.path.startswith("/l/"):
+        qs = parse_qs(parsed.query)
+        uddg = qs.get("uddg")
+        if uddg:
+            return unquote(uddg[0])
+
+    return raw
 
 
 @tool
@@ -42,6 +44,7 @@ def search(query: str, site: str | None = None, days: int | None = None) -> Sear
             timelimit = "d"
         elif days <= 7:
             timelimit = "w"
+            # `m`, `y` as before
         elif days <= 31:
             timelimit = "m"
         else:
@@ -60,7 +63,8 @@ def search(query: str, site: str | None = None, days: int | None = None) -> Sear
 
         for result in raw_results:
             title = result.get("title", "No title")
-            link = result.get("href", "")
+            link_raw = result.get("href") or result.get("url") or ""
+            link = _normalize_link(link_raw)
             snippet = result.get("body", "No description")
             published = result.get("date") or result.get("published")
 
