@@ -5,14 +5,7 @@ from bs4 import BeautifulSoup
 from pydantic import BaseModel
 from langchain_core.tools import tool
 
-
-class FetchResult(BaseModel):
-    url: str
-    status_code: int
-    content_type: Optional[str]
-    title: Optional[str]
-    text: str
-    html: str
+from agent.models import FetchResult
 
 
 def _extract_text(html: str) -> str:

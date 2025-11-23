@@ -18,8 +18,9 @@ from langchain_core.messages import (
 
 from agent.tools.think import think
 from agent.tools.search import search
-from agent.models import SearchResult
-from agent.tools.web_fetch import fetch_url, FetchResult
+from agent.tools.web_fetch import fetch_url
+from agent.tools.citations import format_citations
+from agent.models import SearchResult, FetchResult
 from agent.prompt import build_prompt
 
 
@@ -34,6 +35,7 @@ def build_graph():
         think,
         search,
         fetch_url,
+        format_citations,
     ]
 
     model = ChatOpenAI(
