@@ -8,13 +8,16 @@ from langchain_core.tools import tool
 from agent.models import FetchResult
 
 
+MAX_TEXT_CHARS = 20000
+
+
 def _extract_text(html: str) -> str:
     soup = BeautifulSoup(html, "html.parser")
-
     for tag in soup(["script", "style", "noscript"]):
         tag.decompose()
-
     text = soup.get_text(separator="\n", strip=True)
+    if len(text) > MAX_TEXT_CHARS:
+        text = text[:MAX_TEXT_CHARS]
     return text
 
 
@@ -28,16 +31,14 @@ def _extract_title(html: str) -> Optional[str]:
 
 @tool
 def fetch_url(url: str, timeout: int = 10) -> FetchResult:
-    """Fetch a URL and return structured page content.
+    """Fetch a URL and return cleaned page text.
 
-    Use this to read full web pages after search.
     Returns:
     - url
     - status_code
     - content_type
     - title
-    - plain text content
-    - raw HTML
+    - plain text content (truncated)
     """
     try:
         resp = requests.get(url, timeout=timeout)
@@ -45,7 +46,6 @@ def fetch_url(url: str, timeout: int = 10) -> FetchResult:
 
         html = resp.text if "text/html" in content_type.lower() else ""
         text = _extract_text(html) if html else ""
-
         title = _extract_title(html) if html else None
 
         return FetchResult(
@@ -54,7 +54,6 @@ def fetch_url(url: str, timeout: int = 10) -> FetchResult:
             content_type=content_type,
             title=title,
             text=text,
-            html=html,
         )
     except Exception as e:
         return FetchResult(
@@ -63,5 +62,4 @@ def fetch_url(url: str, timeout: int = 10) -> FetchResult:
             content_type=None,
             title=None,
             text=f"Fetch error: {e}",
-            html="",
         )

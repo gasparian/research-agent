@@ -20,8 +20,7 @@ class FetchResult(BaseModel):
     status_code: int
     content_type: str | None
     title: str | None
-    text: str
-    html: str
+    text: str 
 
 
 class Source(BaseModel):

@@ -32,6 +32,9 @@ class AgentState(TypedDict):
     fetched_pages: Annotated[list[dict], operator.add]
 
 
+MAX_HISTORY_MESSAGES = 20
+
+
 def build_graph():
     tools = [
         think,
@@ -56,15 +59,16 @@ def build_graph():
     tool_node = ToolNode(tools)
 
     def clarify_node(state: AgentState) -> AgentState:
-        messages = state.get("messages") or []
+        history = state.get("messages") or []
+        if len(history) > MAX_HISTORY_MESSAGES:
+            history = history[-MAX_HISTORY_MESSAGES:]
         user_msg = None
-        for m in reversed(messages):
+        for m in reversed(history):
             if isinstance(m, HumanMessage):
                 user_msg = m
                 break
         if user_msg is None:
             return {}
-
         sys = SystemMessage(
             content=(
                 "You decide if the user's request is clear enough to start research.\n"
@@ -73,21 +77,20 @@ def build_graph():
                 "Do not call tools. Do not add anything else."
             )
         )
-
         resp = clarifier_model.invoke([sys, user_msg])
         text = str(resp.content).strip()
-
         if text.upper().startswith("CLEAR"):
             return {}
-
         question = text
         if ":" in text:
             question = text.split(":", 1)[1].strip() or "Could you clarify your request?"
-
         return {"messages": [AIMessage(content=question)]}
 
     def agent_node(state: AgentState) -> AgentState:
-        messages = [system_message] + state["messages"]
+        history = state["messages"]
+        if len(history) > MAX_HISTORY_MESSAGES:
+            history = history[-MAX_HISTORY_MESSAGES:]
+        messages = [system_message] + history
         response = agent_model.invoke(messages)
         return {"messages": [response]}
 
@@ -110,11 +113,8 @@ def build_graph():
             if isinstance(m, ToolMessage) and m.name == "fetch_url":
                 content = m.content
                 if isinstance(content, dict):
-                    try:
-                        fr = FetchResult(**content)
-                        collected_pages.append(fr.model_dump())
-                    except Exception:
-                        pass
+                    fr = FetchResult(**content)
+                    collected_pages.append(fr.model_dump())
 
         data: AgentState = {"messages": messages}
         if collected_search:
