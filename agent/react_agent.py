@@ -30,9 +30,11 @@ class AgentState(TypedDict):
     messages: Annotated[list[AnyMessage], add_messages]
     search_results: Annotated[list[dict], operator.add]
     fetched_pages: Annotated[list[dict], operator.add]
+    clarify_count: Annotated[int, operator.add]
 
 
 MAX_HISTORY_MESSAGES = 20
+MAX_CLARIFY_CALLS = 3
 
 
 def build_graph():
@@ -59,6 +61,10 @@ def build_graph():
     tool_node = ToolNode(tools)
 
     def clarify_node(state: AgentState) -> AgentState:
+        clarify_count = state.get("clarify_count", 0)
+        if clarify_count >= MAX_CLARIFY_CALLS:
+            return {}
+
         history = state.get("messages") or []
         if len(history) > MAX_HISTORY_MESSAGES:
             history = history[-MAX_HISTORY_MESSAGES:]
@@ -81,10 +87,16 @@ def build_graph():
         text = str(resp.content).strip()
         if text.upper().startswith("CLEAR"):
             return {}
+
         question = text
         if ":" in text:
             question = text.split(":", 1)[1].strip() or "Could you clarify your request?"
-        return {"messages": [AIMessage(content=question)]}
+
+        return {
+            "messages": [AIMessage(content=question)],
+            "clarify_count": clarify_count + 1,
+        }
+
 
     def agent_node(state: AgentState) -> AgentState:
         history = state["messages"]
