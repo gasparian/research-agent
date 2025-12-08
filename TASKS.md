@@ -2,12 +2,12 @@
 
 ## START: simple react agent with think tool
 
-## Part 1: add tracing and a search tool  
+## Part 1: search tool  
 
-## Part 2: Add web-fetch to it  
+## Part 2: add citations
 
-## Part 3: Add citations
+## Part 3: improve it with web-fetch
 
-## Part 4 (OPTIONAL): Add python exec
+## Part 4: add clarification node
 
 ## EXTRA - Build a nice client
