@@ -1,3 +1,4 @@
+import time
 from datetime import datetime, timezone
 from urllib.parse import urlparse, parse_qs, unquote
 
@@ -44,7 +45,6 @@ def search(query: str, site: str | None = None, days: int | None = None) -> Sear
             timelimit = "d"
         elif days <= 7:
             timelimit = "w"
-            # `m`, `y` as before
         elif days <= 31:
             timelimit = "m"
         else:
@@ -58,6 +58,7 @@ def search(query: str, site: str | None = None, days: int | None = None) -> Sear
                 timelimit=timelimit,
             )
         )
+        time.sleep(0.2)  # to avoid rate limiting
 
         items: list[SearchItem] = []
 

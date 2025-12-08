@@ -60,7 +60,7 @@ async def main():
 
     config = {
         "configurable": {"thread_id": "research-1"},
-        "recursion_limit": 50,
+        "recursion_limit": 100,
     }
 
     print("Type an empty line to exit.\n")
