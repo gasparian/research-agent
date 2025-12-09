@@ -14,6 +14,10 @@ from langchain_core.messages import (
 )
 
 from agent.tools.think import think
+from agent.tools.search import search
+from agent.tools.citations import format_citations
+from agent.tools.current_date import get_current_datetime
+from agent.models import SearchResult
 from agent.prompt import build_prompt
 
 
@@ -24,11 +28,13 @@ class AgentState(TypedDict):
 def build_graph():
     tools = [
         think,
+        search,
+        format_citations,
+        get_current_datetime,
     ]
 
     base_llm = ChatOpenAI(
-        model="Qwen/Qwen3-Next-80B-A3B-Instruct",
-        base_url="https://foundation-models.api.cloud.ru/v1",
+        model="gpt-4o",
         temperature=0,
     )
 
