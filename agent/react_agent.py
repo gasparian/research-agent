@@ -1,4 +1,3 @@
-import operator
 from typing import Annotated
 
 from typing_extensions import TypedDict
@@ -56,7 +55,15 @@ def build_graph():
     graph.add_node("tools", ToolNode(tools))
 
     graph.set_entry_point("agent")
-    graph.add_conditional_edges("agent", should_continue, {"tools": "tools", END: END})
+
+    graph.add_conditional_edges(
+        "agent", 
+        should_continue, 
+        {
+            "tools": "tools", 
+            END: END,
+        }
+    )
     graph.add_edge("tools", "agent")
 
     app = graph.compile(checkpointer=MemorySaver())
