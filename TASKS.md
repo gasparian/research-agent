@@ -10,4 +10,6 @@
 
 ## Part 5: add clarification node
 
-## EXTRA - Build a nice client
+## EXTRA:
+  - Build a nice client (web/tg)
+  - python code execution tool
