@@ -18,3 +18,11 @@ class Source(BaseModel):
     title: str
     link: str
     note: str | None = None
+
+
+class FetchResult(BaseModel):
+    url: str
+    status_code: int
+    content_type: str | None
+    title: str | None
+    text: str 

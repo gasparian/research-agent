@@ -17,6 +17,7 @@ from agent.tools.think import think
 from agent.tools.search import search
 from agent.tools.citations import format_citations
 from agent.tools.current_date import get_current_datetime
+from agent.tools.web_fetch import fetch_url
 from agent.models import SearchResult
 from agent.prompt import build_prompt
 
@@ -25,12 +26,16 @@ class AgentState(TypedDict):
     messages: Annotated[list[AnyMessage], add_messages]
 
 
+MAX_HISTORY_MESSAGES = 20
+
+
 def build_graph():
     tools = [
         think,
         search,
         format_citations,
         get_current_datetime,
+        fetch_url,
     ]
 
     base_llm = ChatOpenAI(
@@ -45,6 +50,8 @@ def build_graph():
 
     def agent_node(state: AgentState) -> AgentState:
         history = state["messages"]
+        if len(history) > MAX_HISTORY_MESSAGES:
+            history = history[-MAX_HISTORY_MESSAGES:]
         messages = [system_message] + history
         response = agent_model.invoke(messages)
         return {"messages": [response]}
